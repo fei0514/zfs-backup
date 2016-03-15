@@ -1,0 +1,138 @@
+#!/bin/sh
+
+################################################################
+##################Setting job info for user ####################
+################################################################
+host="192.168.1.161" # remote host IP
+folder_name="V2P"
+s_vol="vol" #source volume 
+d_vol="vol01/tp" #destination volume
+d_full_vol="/mnt/vol01" #destination full volume locate, volume ""mountpoint+volume"" Nexenta=/volumes  , TrzeNAS=/mnt
+mailer= #abc@test.com
+################################################################
+#only folder
+#  /vol/folder
+# 
+
+#job info
+pool="$s_vol/$folder_name"
+destination="$d_vol/$folder_name"
+path="$d_full_vol/$folder_name.vrp"
+log_path="$d_full_vol/jobs/log/vrp-$folder_name.log"
+
+#snapshot name
+snapshot_now="$pool@now"  #`date "+%Y-%m-%d-%H-%M"`
+snapshot_latest="$pool@last"
+d_snapshot_now="$destination@now"
+d_snapshot_last="$destination@last"
+
+####Setting wanna destroy snapshot  month=m day=d Min=M  
+#snapshot_delete="$pool@"`date -v "-30M" "+%Y-%m-%d-%H-%M"`
+
+if [ -e $d_full_vol/jobs/log ]; then
+	echo ""
+else
+	mkdir -p $d_full_vol/jobs/log
+fi
+
+echo "`date` VRP JOB Start" |tee -a $log_path
+echo "source pool : $pool" >> $log_path
+echo "destination pool : $destination" >> $log_path 
+
+##Check JOB is runnuing
+run=`ps -aux |grep -i "$folder_name" |grep -v grep |grep zfs |wc -l`
+if [ "$run" -ne 0 ]; then
+	echo "`date` $folder_name VRP JOB is Running , new job is Stopping" |tee -a $log_path
+	exit 0
+fi
+	
+
+#answer=`ping -c 5 $host`
+#if [ "$answer" == "no answer from $host" ]; then
+#echo "remote host or networking fail" |tee -a $log_path
+#exit 1
+#fi
+
+if ssh root@$host zfs list -H -o name -t snapshot | sort | grep "$snapshot_now$" > /dev/null; then
+echo " snapshot, $snapshot_now, already exists" >> $log_path 2>&1
+else
+echo " taking current snapshot, $snapshot_now"  >> $log_path 2>&1
+ssh root@$host zfs snapshot -r $snapshot_now
+fi
+
+
+if ssh root@$host zfs list -H -o name -t snapshot | sort | grep "$snapshot_latest$" > /dev/null; then
+	echo "$snapshot_latest is exists ,Let's proceed with incremental backup"  >> $log_path 2>&1
+	#time ssh root@$host zfs send -R -i $snapshot_latest $snapshot_now | zfs recv -v $destination >> $log_path 2>&1
+	ssh root@$host zfs send -vn -i $snapshot_latest $snapshot_now >> $log_path 2>&1
+	ssh root@$host zfs send -i $snapshot_latest $snapshot_now > $path 
+	zfs recv -ev $destination < $path | tee -a $log_path
+	
+	#When happenened ""destination <vol>/<folder> has been modified""
+	#can use this command to resolve.
+	#zfs recv -Fv $destination < $path | tee -a $log_path
+	
+
+#determine snapshot is ok,then delete old snapshot
+	if zfs list -t snapshot |grep "$d_snapshot_now" ; then
+		ssh root@$host zfs destroy $snapshot_latest 
+		ssh root@$host zfs rename $snapshot_now $snapshot_latest 
+		zfs destroy $d_snapshot_last
+		zfs rename $d_snapshot_now $d_snapshot_last
+		echo " VRP Incremental Backup Complete "  |tee -a $log_path
+		#mailtitle="$folder_name VRP JOB Success"
+		sendmail=0
+	else
+		echo "Destination can't find New snapshot" >> $log_path
+		echo "VRP Incremental Backup Fail" >> $log_path
+		mailtitle="$folder_name VRP JOB Fail"
+		sendmail=1
+	fi
+
+###Destroy Snapshot
+#if  zfs list -H -o name -t snapshot | sort | grep "$snapshot_delete$" ; then
+#echo "Destroy $snapshot_delete" >> $log_path 2>&1
+#zfs destroy $snapshot_delete
+#else
+#echo "No $snapshot_delete can destroy"  >> $log_path 2>&1
+#fi
+
+else
+	echo "Missing $snapshot_latest , run FULL backup"  >> $log_path 2>&1
+	ssh root@$host zfs send -vn $snapshot_now >> $log_path 2>&1
+	ssh root@$host zfs send $snapshot_now | zfs recv -Fv $destination >> $log_path 2>&1
+	echo " VRP FULL backup complete "  |tee -a $log_path
+	ssh root@$host zfs rename $snapshot_now $snapshot_latest 
+	zfs rename $d_snapshot_now $d_snapshot_last
+	sendmail=0
+fi
+
+if [ -e $path ]&&[ "$sendmail" -eq 0 ]; then
+	rm -f $path
+	echo "remove $path" >> $log_path
+fi
+
+echo "`date`  VRP JOB Done" |tee -a $log_path
+echo "" >> $log_path 2>&1
+echo "" >> $log_path 2>&1
+
+#JOB fail send alart mail
+if [ "$sendmail" -eq 0 ]; then
+	exit 1
+else
+	tail -11 $log_path | mail -s "$mailtitle" $mailer
+fi
+
+#20160222
+#1.Detect JOB is running
+
+#20151207 update list
+#1.Add mail 
+#2.auto create log folder
+#3.Add zfs -vn , Calculating send size estimations
+
+# 20150824 update list
+#1.resolve, destination snapshot issue
+#2.resolve, log can not save
+#3.resolve, nested folder can not execution incremental backup 
+#4.found , how to do incremental job after zfs rename
