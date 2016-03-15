@@ -10,9 +10,7 @@ d_vol="vol01/tp" #destination volume
 d_full_vol="/mnt/vol01" #destination full volume locate, volume ""mountpoint+volume"" Nexenta=/volumes  , TrzeNAS=/mnt
 mailer= #abc@test.com
 ################################################################
-#only folder
-#  /vol/folder
-# 
+
 
 #job info
 pool="$s_vol/$folder_name"
