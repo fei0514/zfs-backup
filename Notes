@@ -1,0 +1,2 @@
+1.zfs receive : Device is busy
+原因:在做receive時，如果系統有在做其他建立snapshot動作，則會讓該folder執行中的receive 將會失敗。
