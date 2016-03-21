@@ -64,7 +64,8 @@ if ssh root@$host zfs list -H -o name -t snapshot | sort | grep "$snapshot_lates
 	#time ssh root@$host zfs send -R -i $snapshot_latest $snapshot_now | zfs recv -v $destination >> $log_path 2>&1
 	ssh root@$host zfs send -vn -i $snapshot_latest $snapshot_now >> $log_path 2>&1
 	ssh root@$host zfs send -i $snapshot_latest $snapshot_now > $path 
-	zfs recv -ev $destination < $path | tee -a $log_path
+	#zfs recv -ev $destination < $path | tee -a $log_path
+	cat $path | zfs recv -ev $destination >>& $log_path
 	
 	#When happenened ""destination <vol>/<folder> has been modified""
 	#can use this command to resolve.
