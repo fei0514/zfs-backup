@@ -1,0 +1,24 @@
+#!/bin/bash
+
+################################################################
+##################Setting job info for user ####################
+################################################################
+host="192.168.1.161" # remote host IP
+folder_name="V2P"
+
+##source volume 
+s_vol="vol" 
+
+##destination volume
+d_vol="vol/tp" 
+
+##destination full volume locate, volume ""mountpoint+volume"" Nexenta=/volumes  , TrzeNAS=/mnt
+mvol="/mnt/vol" 
+mailer="root" #abc@test.com
+################################################################
+
+
+##info summary
+source="$s_vol/$folder_name"
+dest="$d_vol/$folder"
+log="$mvol/jobs/log"
