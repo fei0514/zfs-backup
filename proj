@@ -76,9 +76,25 @@ if ssh root@$host zfs list -H -o name -t snapshot | sort | grep "$snapshot_lates
 #determine snapshot is ok,then delete old snapshot
 	if zfs list -t snapshot |grep "$d_snapshot_now" > /dev/null; then
 		ssh root@$host zfs destroy -R $snapshot_latest 
-		ssh root@$host zfs rename -r $snapshot_current $snapshot_latest 
+		sleep 10
+		rd=`ssh root@$host zfs list -t snapshot |grep "$pool" |grep last |wc -l`
+		if [ $rd -eq 0 ] ; then
+			ssh root@$host zfs rename -r $snapshot_current $snapshot_latest
+		else
+			echo "Remote $snapshot_latest no destroy " |mailx -s "$folder_name VRP JOB Fail" $mailer
+			exit 1
+		fi
+		
 		zfs destroy -R $d_snapshot_last
-		zfs rename -r $d_snapshot_now $d_snapshot_last
+		sleep 10
+		ld=`zfs list -t snapshot |grep "$destination" |grep last |wc -l`
+		if [ $ld -eq 0 ] ; then
+			zfs rename -r $d_snapshot_now $d_snapshot_last
+		else
+			echo "locat $d_snapshot_last no destroy " |mailx -s "$folder_name VRP JOB Fail" $mailer
+			exit 1
+		fi
+			
 		echo " VRP Incremental Backup Complete "  |tee -a $log_path
 		#mailtitle="$folder_name VRP JOB Success"
 		sendmail=0
