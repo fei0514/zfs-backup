@@ -38,7 +38,7 @@ echo "source pool : $pool" >> $log_path
 echo "destination pool : $destination" >> $log_path 
 
 ##Check JOB is runnuing
-run=`ps -aux |grep -i "$folder_name" |grep -v grep |grep zfs |wc -l`
+run=`ps -auxw |grep -i "$folder_name" |grep -v grep |grep zfs |wc -l`
 if [ "$run" -ne 0 ]; then
 	echo "`date` $folder_name VRP JOB is Running , new job is Stopping" |tee -a $log_path
 	exit 0
