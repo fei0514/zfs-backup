@@ -74,6 +74,13 @@ if ssh root@$host zfs list -H -o name -t snapshot | sort | grep "$snapshot_lates
 	
 
 #determine snapshot is ok,then delete old snapshot
+	rnow_count=`ssh root@$host zfs list -t snapshot |grep "$pool" |grep now |wc -l`
+	lnow_count=`zfs list -t snapshot |grep "$destination" |grep now |wc -l`
+	
+	if [ $rnow_count -ne $lnow_count ]; then
+		echo "snapshot @now are not equal ,please check log" |mailx -s "$folder_name VRP JOB Fail" $mailer
+	fi
+	
 	if zfs list -t snapshot |grep "$d_snapshot_now" > /dev/null; then
 		ssh root@$host zfs destroy -R $snapshot_latest 
 		sleep 10
